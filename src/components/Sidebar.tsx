@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, LogOut, Menu, X, GitPullRequest, TrendingUp } from 'lucide-react';
-import toast from 'react-hot-toast'; // YENİ: Bildirim fonksiyonunu import et
+import toast from 'react-hot-toast';
 
 interface SidebarProps {
   currentUserUsername: string | null;
@@ -14,36 +14,49 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // YENİ: Senkronizasyon durumunu tutan state
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Navigasyon linklerinden "Kullanıcı Eşitle" kaldırıldı
   const navItems = [
     { name: 'Samrest Atar', href: '/dashboard', icon: Home },
     { name: 'Stabilizasyon', href: '/dashboard/stabilization', icon: TrendingUp },
   ];
 
-  // YENİ: Senkronizasyon işlemini başlatan fonksiyon
   const handleSync = async () => {
     setIsSyncing(true);
 
-    const syncPromise = fetch('/api/sync-elemanlar', { method: 'POST' });
+    // GÖNDERİLECEK VERİ: API'nin beklediği kimlik bilgileri
+    const credentials = {
+        username: "ybayraktar",
+        password: "23121633",
+        connectionType: "forticlient",
+    };
+
+    // DÜZELTİLEN KISIM: fetch çağrısına headers ve body eklendi
+    const syncPromise = fetch('/api/sync-elemanlar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
 
     toast.promise(
       syncPromise.then(async (res) => {
+        // Hata durumunda bile JSON'ı okumaya çalış, sunucudan gelen hata mesajını yakala
         const result = await res.json();
-        if (!res.ok || !result.success) {
-          throw new Error(result.message || 'Bilinmeyen bir hata oluştu.');
+        if (!res.ok) { // res.ok durumu 200-299 arası HTTP durum kodlarını kontrol eder
+          // result.message sunucudaki API rotasından gelen hata mesajıdır
+          throw new Error(result.message || 'Bilinmeyen bir sunucu hatası oluştu.');
         }
-        return result.message; // Başarılı mesajını döndür
+        return result.message; 
       }),
       {
         loading: 'Kullanıcılar senkronize ediliyor...',
-        success: (message) => <b>{message}</b>, // Başarılı mesajını kalın göster
-        error: (err) => <b>Hata: {err.toString()}</b>, // Hata mesajını kalın göster
+        success: (message) => <b>{String(message)}</b>,
+        error: (err) => <b>Hata: {err.toString()}</b>,
       }
     );
 
-    // Promise bittikten sonra butonu tekrar aktif et
     syncPromise.finally(() => setIsSyncing(false));
   };
 
@@ -79,7 +92,6 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
             </Link>
           ))}
 
-          {/* YENİ: Senkronizasyon Butonu */}
           <button
             onClick={handleSync}
             disabled={isSyncing}

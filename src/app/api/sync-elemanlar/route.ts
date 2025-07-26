@@ -1,65 +1,127 @@
 // src/app/api/sync-elemanlar/route.ts
 
 import { NextResponse } from 'next/server';
-import { loginSamgaz } from '../../lib/auth'; // lib klasörünün yolu düzeltildi
+import { loginSamgaz } from '../../lib/auth';
+// Update the import path to the correct location of your Supabase client
 import { createClient } from '@/utils/supabase/server';
-import { getSession } from '@/app/lib/session'; // lib klasörünün yolu düzeltildi
+import { Eleman, SamgazApiUser, SyncResult } from '@/types/database';
 
 export async function POST(request: Request) {
   const supabase = createClient(); 
-  
+
   try {
-    const session = await getSession();
-    if (!session.isLoggedIn || !session.username || !session.password || !session.connectionType) {
-      return NextResponse.json({ success: false, message: 'Yetkisiz erişim.' }, { status: 401 });
+    const { username, password, connectionType } = await request.json();
+
+    if (!username || !password || !connectionType) {
+      return NextResponse.json<SyncResult>({
+        success: false,
+        message: 'Kullanıcı adı, parola ve bağlantı türü zorunludur.',
+        addedCount: 0,
+        deletedCount: 0,
+        error: 'Eksik kimlik bilgileri'
+      }, { status: 400 });
     }
 
-    const samgazLoginResult = await loginSamgaz(session.username, session.password, session.connectionType);
+    const samgazLoginResult = await loginSamgaz(username, password, connectionType);
+
     if (!samgazLoginResult.success || !samgazLoginResult.data?.results) {
-      return NextResponse.json({ success: false, message: 'Samgaz API\'den kullanıcı listesi alınamadı.' }, { status: 401 });
+      return NextResponse.json<SyncResult>({
+        success: false,
+        message: samgazLoginResult.message || 'Samgaz API\'den kullanıcı listesi alınamadı.',
+        addedCount: 0,
+        deletedCount: 0,
+        error: 'Samgaz API hatası'
+      }, { status: 401 });
     }
 
-    const samgazUsers = samgazLoginResult.data.results;
-    const samgazUserIds = new Set(samgazUsers.map(u => String(u.value)));
+    const samgazUsers: SamgazApiUser[] = samgazLoginResult.data.results;
+    const samgazUserIds = new Set(samgazUsers.map(u => String(u.value))); 
 
-    const { data: supabaseElemanlar, error: supabaseError } = await supabase.from('elemanlar').select('eleman_id, eleman_row');
-    if (supabaseError) throw new Error('Supabase\'den mevcut elemanlar çekilirken hata.');
+    const { data: supabaseElemanlar, error: supabaseError } = await supabase
+      .from('elemanlar')
+      .select('*'); // Tüm kolonları çekiyoruz
 
-    const existingElemanIds = new Set((supabaseElemanlar || []).map(e => String(e.eleman_id)));
-    
-    // Mevcut en yüksek 'eleman_row' değerini bul
-    let maxRow = (supabaseElemanlar || []).reduce((max, p) => p.eleman_row > max ? p.eleman_row : max, 0);
+    if (supabaseError) {
+      console.error('Supabase elemanlar çekilirken hata:', supabaseError);
+      return NextResponse.json<SyncResult>({
+        success: false,
+        message: 'Supabase\'den mevcut elemanlar çekilirken hata oluştu.',
+        addedCount: 0,
+        deletedCount: 0,
+        error: supabaseError.message
+      }, { status: 500 });
+    }
 
-    const elemanlarToAdd = samgazUsers.filter(samgazUser => !existingElemanIds.has(String(samgazUser.value)));
-    const elemanlarToDelete = (supabaseElemanlar || []).filter(e => !samgazUserIds.has(String(e.eleman_id)));
+    const existingElemanlar: Eleman[] = supabaseElemanlar || [];
+    const existingElemanIds = new Set(existingElemanlar.map(e => String(e.eleman_id))); 
 
     let addedCount = 0;
     let deletedCount = 0;
 
+    const elemanlarToAdd = samgazUsers.filter(samgazUser => !existingElemanIds.has(String(samgazUser.value)));
+
     if (elemanlarToAdd.length > 0) {
-      const newElemanlarData = elemanlarToAdd.map((u, index) => ({ 
+      const newElemanlarData = elemanlarToAdd.map(u => ({
         eleman_id: String(u.value), 
         eleman_name: u.label,
-        eleman_row: maxRow + index + 1 // Her yeni elemana artan bir sıra numarası ata
+        eleman_bool1: false, eleman_bool2: false, eleman_bool3: false, eleman_bool4: false,
+        eleman_bool5: false, eleman_bool6: false, eleman_bool7: false, eleman_bool8: false,
+        eleman_bool9: false, eleman_bool10: false, eleman_bool11: false, eleman_bool12: false,
+        eleman_ilce: null, 
+        eleman_row: null, 
+        eleman_dosya1: null, eleman_dosya2: null, eleman_dosya3: null, eleman_dosya4: null,
+        eleman_dosya5: null, eleman_dosya6: null, eleman_dosya7: null, eleman_dosya8: null,
       }));
-      const { error } = await supabase.from('elemanlar').insert(newElemanlarData);
-      if (error) throw new Error('Yeni elemanlar eklenirken hata: ' + error.message);
-      addedCount = elemanlarToAdd.length;
+
+      const { error: insertError } = await supabase
+        .from('elemanlar')
+        .insert(newElemanlarData);
+
+      if (insertError) {
+        console.error('Eleman eklenirken hata:', insertError);
+      } else {
+        addedCount = elemanlarToAdd.length;
+      }
     }
+
+    const elemanlarToDelete = existingElemanlar.filter(supabaseEleman => !samgazUserIds.has(String(supabaseEleman.eleman_id)));
 
     if (elemanlarToDelete.length > 0) {
       const elemanIdsToDelete = elemanlarToDelete.map(e => e.eleman_id);
-      const { error } = await supabase.from('elemanlar').delete().in('eleman_id', elemanIdsToDelete);
-      if (error) throw new Error('Eski elemanlar silinirken hata: ' + error.message);
-      deletedCount = elemanlarToDelete.length;
+      const { error: deleteError } = await supabase
+        .from('elemanlar')
+        .delete()
+        .in('eleman_id', elemanIdsToDelete);
+
+      if (deleteError) {
+        console.error('Eleman silinirken hata:', deleteError);
+      } else {
+        deletedCount = elemanlarToDelete.length;
+      }
     }
 
-    const message = `Senkronizasyon tamamlandı: ${addedCount} kullanıcı eklendi, ${deletedCount} kullanıcı silindi.`;
-    return NextResponse.json({ success: true, message: message });
+    const message = `Senkronizasyon tamamlandı: ${addedCount} eleman eklendi, ${deletedCount} eleman silindi.`;
+    console.log(message);
+
+    return NextResponse.json<SyncResult>({
+      success: true,
+      message: message,
+      addedCount: addedCount,
+      deletedCount: deletedCount,
+    }, { status: 200 });
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Bilinmeyen sunucu hatası.';
-    console.error('Senkronizasyon API hatası:', errorMessage);
-    return NextResponse.json({ success: false, message: errorMessage }, { status: 500 });
+    let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    console.error('Senkronizasyon API rotasında beklenmedik hata:', error);
+    return NextResponse.json<SyncResult>({
+      success: false,
+      message: 'Senkronizasyon sırasında beklenmedik bir hata oluştu.',
+      addedCount: 0,
+      deletedCount: 0,
+      error: errorMessage
+    }, { status: 500 });
   }
 }

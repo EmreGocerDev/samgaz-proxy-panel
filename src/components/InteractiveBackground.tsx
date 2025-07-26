@@ -5,6 +5,8 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { cities } from '../app/lib/cities';
 
 type ParticleType = 'city' | 'filler';
+
+// Tip tanımını tam olarak ekledim
 interface Particle {
   name?: string;
   type: ParticleType;
@@ -18,15 +20,7 @@ interface Particle {
   opacity: number;
 }
 
-// YENİ: Component'in dışarıdan alacağı props'lar için tip tanımları
-interface TracerColor {
-  rgb: string;
-  shadow: string;
-}
-interface InteractiveBackgroundProps {
-  tracerColor: TracerColor;
-}
-
+// Debounce yardımcı fonksiyonu, bir fonksiyonun çok sık çalışmasını engeller
 function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<F>): void => {
@@ -35,7 +29,7 @@ function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
   };
 }
 
-const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ tracerColor }) => {
+const InteractiveBackground = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cityParticlesRef = useRef<Particle[]>([]);
   const fillerParticlesRef = useRef<Particle[]>([]);
@@ -49,19 +43,23 @@ const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ tracerCol
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
     const rect = canvas.getBoundingClientRect();
     if (canvas.width !== rect.width || canvas.height !== rect.height) {
         canvas.width = rect.width;
         canvas.height = rect.height;
     }
+
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
     mouseRef.current = { x: canvas.width / 2, y: canvas.height / 2 };
     const lonMin = 25.5, lonMax = 45.0, latMin = 35.5, latMax = 42.5;
     const mapWidth = lonMax - lonMin, mapHeight = latMax - latMin;
     const canvasAspectRatio = canvas.width / canvas.height, mapAspectRatio = mapWidth / mapHeight;
     const padding = 50; 
     let scale, offsetX, offsetY;
+
     if (canvasAspectRatio > mapAspectRatio) {
       scale = (canvas.height - padding * 2) / mapHeight;
       offsetX = (canvas.width - mapWidth * scale) / 2;
@@ -135,9 +133,8 @@ const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ tracerCol
         const distanceMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse); 
         if (distanceMouse < MOUSE_CONNECTION_DISTANCE) { 
             ctx.beginPath(); ctx.moveTo(p1.screenX, p1.screenY); ctx.lineTo(mouseRef.current.x, mouseRef.current.y); 
-            const opacity = 0.8 - distanceMouse / MOUSE_CONNECTION_DISTANCE;
-            ctx.strokeStyle = `rgba(${tracerColor.rgb}, ${opacity})`; 
-            ctx.lineWidth = 1; ctx.shadowColor = tracerColor.shadow; ctx.shadowBlur = 15; ctx.stroke(); ctx.shadowBlur = 0; 
+            ctx.strokeStyle = `rgba(255, 0, 255, ${0.8 - distanceMouse / MOUSE_CONNECTION_DISTANCE})`; 
+            ctx.lineWidth = 1; ctx.shadowColor = 'magenta'; ctx.shadowBlur = 15; ctx.stroke(); ctx.shadowBlur = 0; 
         } 
         for (let j = i + 1; j < allPoints.length; j++) { 
             const p2 = allPoints[j]; 
@@ -158,8 +155,13 @@ const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ tracerCol
     };
     
     const debouncedSetup = debounce(setupCanvas, 100);
-    const resizeObserver = new ResizeObserver(() => debouncedSetup());
-    if (canvas) resizeObserver.observe(canvas);
+    const resizeObserver = new ResizeObserver(() => {
+        debouncedSetup();
+    });
+
+    if (canvas) {
+        resizeObserver.observe(canvas);
+    }
     
     setupCanvas();
     animate();
@@ -168,9 +170,9 @@ const InteractiveBackground: React.FC<InteractiveBackgroundProps> = ({ tracerCol
     return () => {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       resizeObserver.disconnect();
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mousemove', handleMouseMove);
     };
-  }, [setupCanvas, tracerColor]);
+  }, [setupCanvas]);
 
   return <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full z-0" />;
 };
