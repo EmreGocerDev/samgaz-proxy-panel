@@ -1,4 +1,3 @@
-// src/app/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -21,11 +20,19 @@ interface ApiResponse {
   results?: Eleman[];
 }
 
+// Renk seçeneklerimizin tipini tanımlıyoruz
+interface TracerColor {
+  rgb: string;
+  shadow: string;
+}
+
 export default function DashboardPage() {
   const [userList, setUserList] = useState<Eleman[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [tracerColor, setTracerColor] = useState<TracerColor>({ rgb: '255, 0, 255', shadow: 'magenta' });
+
 
   const sensors = useSensors(useSensor(PointerSensor, {
     // Kartın içindeki bir butona basıldığında sürüklemenin başlamasını engelle
@@ -35,6 +42,7 @@ export default function DashboardPage() {
   }));
 
   useEffect(() => {
+    // Veri çekme mantığı aynı, değişiklik yok
     const fetchData = async () => {
       try {
         const response = await fetch('/api/get-data');
@@ -52,7 +60,7 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  // --- BU FONKSİYON GÜNCELLENDİ ---
+  // Sürükleme bittiğinde çalışan fonksiyon
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
@@ -114,7 +122,7 @@ export default function DashboardPage() {
 
   return (
     <main className="relative flex min-h-screen overflow-hidden bg-gray-950">
-      <InteractiveBackground /> 
+      <InteractiveBackground tracerColor={tracerColor}/> 
       <Sidebar currentUserUsername={currentUser} />
       <div className="relative z-20 flex-grow p-4 pl-20 md:pl-8 sm:p-6 lg:p-8">
         {renderContent()}
