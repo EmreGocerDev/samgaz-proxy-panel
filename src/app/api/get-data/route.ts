@@ -1,61 +1,51 @@
 // src/app/api/get-data/route.ts
 
 import { NextResponse } from 'next/server';
-// loginSamgaz fonksiyonunu src/lib/auth.ts'den import ediyoruz
-import { loginSamgaz } from '../../lib/auth'; // Ekran görüntüsüne ve metninizdeki "getdataroute" kısmına göre yol: ../../lib/auth
+import { loginSamgaz } from '../../lib/auth';
+import { getSession } from '../../lib/session'; // Kendi session fonksiyonumuzu import ediyoruz
 
-export async function POST(request: Request) {
+// DİKKAT: Fonksiyon POST'tan GET'e değişti
+export async function GET() { 
   try {
-    const { username, password, connectionType } = await request.json();
+    // 1. Adım: Session'ı cookie'den oku
+    const session = await getSession();
 
-    if (!username || !password || !connectionType) {
-      return NextResponse.json({ error: 'Kullanıcı adı, parola ve bağlantı türü zorunludur.' }, { status: 400 });
+    // 2. Adım: Kullanıcı giriş yapmış mı diye kontrol et
+    if (!session.isLoggedIn || !session.username || !session.password || !session.connectionType) {
+      return NextResponse.json({ error: 'Yetkisiz erişim. Lütfen giriş yapın.' }, { status: 401 });
     }
 
-    // Hata ayıklama için gelen bilgileri loglayalım
-    console.log('API rotasına gelen istek:', { username, connectionType });
+    console.log(`get-data API'ı tetiklendi. Session'dan gelen kullanıcı: '${session.username}'`);
 
-    // loginSamgaz fonksiyonunu çağırıyoruz
-    const loginResult = await loginSamgaz(username, password, connectionType);
+    // 3. Adım: Session'daki bilgileri kullanarak Samgaz'a giriş yap
+    const loginResult = await loginSamgaz(session.username, session.password, session.connectionType);
 
-    // Hata ayıklama için login fonksiyonundan dönen tüm sonucu loglayalım
-    // Bu, hem loginSamgaz'ın başarı durumunu hem de AJAX isteğinden dönen data'yı gösterecektir.
-    console.log('loginSamgaz fonksiyonundan dönen ham veri:', JSON.stringify(loginResult, null, 2));
-
-    // Giriş işlemi başarısız olduysa veya gerekli client bilgisi dönmediyse
-    if (!loginResult.success || !loginResult.client) {
+    if (!loginResult.success || !loginResult.data) {
       return NextResponse.json({ 
-          error: loginResult.message || 'Giriş başarısız oldu veya oturum bilgisi alınamadı.' 
+        error: loginResult.message || 'Giriş başarısız oldu veya oturum bilgisi alınamadı.' 
       }, { status: 401 });
     }
 
-    // loginSamgaz fonksiyonu zaten groupUsers isteğini içerdiğinden,
-    // onun döndürdüğü loginResult.data objesi zaten beklenen 'results' dizisini içermelidir.
-    // Burada tekrar bir istek atmaya veya postData göndermeye GEREK YOK.
-    const usersData = loginResult.data; 
+    const usersData = loginResult.data;
 
-    // usersData'nın beklenen 'results' dizisini içerip içermediğini kontrol et
     if (usersData && Array.isArray(usersData.results)) {
-        // Başarılı bir şekilde kullanıcı listesini döndür
-        return NextResponse.json({ 
-            success: true, 
-            results: usersData.results // Direkt 'results' dizisini döndürüyoruz
-        });
+      // 4. Adım: Başarılı yanıta, giriş yapan kullanıcının adını da ekle
+      return NextResponse.json({ 
+        success: true, 
+        loggedInUsername: session.username, // Sidebar'da göstermek için kullanıcı adını da yolluyoruz
+        results: usersData.results
+      });
     } else {
-        // Eğer beklenen formatta gelmiyorsa (örn: results dizisi yoksa veya bir dizi değilse)
-        // Bu durum, loginSamgaz'ın groupUsers isteğinden beklenen veriyi alamadığını gösterir.
-        return NextResponse.json({ 
-            success: false, 
-            message: 'Kullanıcı listesi loginSamgaz’dan beklenen formatta alınamadı veya boş.' 
-        }, { status: 200 }); // Ya da duruma göre 400 Bad Request
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Kullanıcı listesi beklenen formatta alınamadı veya boş.' 
+      }, { status: 500 });
     }
 
   } catch (error) {
     let errorMessage = 'Bilinmeyen bir hata oluştu.';
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    }
-    console.error('get-data API rotasında hata:', error); // Sunucu tarafında hatayı logla
+    if (error instanceof Error) { errorMessage = error.message; }
+    console.error('get-data API rotasında hata:', error);
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

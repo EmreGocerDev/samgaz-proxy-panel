@@ -1,25 +1,35 @@
 // src/components/Sidebar.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, List, Settings, LogOut, Menu, X, User } from 'lucide-react'; // İkonlar için
+import { Home, Users, Settings, LogOut, Menu, X, GitPullRequest, TrendingUp } from 'lucide-react'; // Yeni ikonlar: GitPullRequest, TrendingUp
 
 interface SidebarProps {
-  // İsterseniz buraya kullanıcı bilgisi gibi propslar ekleyebilirsiniz
+  currentUserUsername: string | null; // Mevcut kullanıcının kullanıcı adını prop olarak alacağız
 }
 
-const Sidebar: React.FC<SidebarProps> = () => {
+const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false); // Mobil görünüm için sidebar'ın açık/kapalı durumu
 
   const navItems = [
-    { name: 'Ana Panel', href: '/dashboard', icon: Home },
-    { name: 'Tüm İşlemler', href: '/dashboard/transactions', icon: List },
-    { name: 'Kullanıcılarım', href: '/dashboard/users', icon: User }, // Yeni bir link ekledik
-    { name: 'Ayarlar', href: '/dashboard/settings', icon: Settings },
+    { name: 'Samrest Atar', href: '/dashboard', icon: Home }, // Ana Panel yerine Samrest Atar
+    { name: 'Kullanıcı Eşitle', href: '/dashboard/sync-users', icon: GitPullRequest }, // Yeni link ve ikon
+    { name: 'Stabilizasyon', href: '/dashboard/stabilization', icon: TrendingUp },   // Yeni link ve ikon
   ];
+
+  // Sidebar'ın otomatik kapanması için useEffect (mobil cihazlarda)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) { // md breakpoint (768px)
+        setIsOpen(false); // Masaüstü boyutuna gelince mobil menüyü kapat
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <>
@@ -31,14 +41,14 @@ const Sidebar: React.FC<SidebarProps> = () => {
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar - Hem masaüstü hem mobil için */}
+      {/* Sidebar - Tüm dikey ekranı kaplasın */}
       <aside 
         className={`
           fixed inset-y-0 left-0 z-40
           w-64 transform 
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           md:translate-x-0 md:relative md:w-64
-          h-full
+          min-h-screen   // <--- Bu satır sidebar'ın minimum ekran yüksekliğini kaplamasını sağlar
           bg-zinc-900/60 backdrop-blur-xl border-r border-zinc-800
           transition-transform duration-300 ease-in-out
           flex flex-col p-4
@@ -68,8 +78,14 @@ const Sidebar: React.FC<SidebarProps> = () => {
           ))}
         </nav>
 
-        {/* Çıkış butonu veya alt kısım */}
-        <div className="mt-auto pt-6 border-t border-zinc-700">
+        {/* Kullanıcı Adı ve Çıkış butonu */}
+        <div className="mt-auto pt-6 border-t border-zinc-700 flex flex-col gap-4">
+          {currentUserUsername && (
+            <div className="flex items-center text-zinc-300 text-sm font-medium">
+              <Users size={18} className="mr-2 text-cyan-400" />
+              <span>Giriş Yapan: <span className="font-bold text-white">{currentUserUsername}</span></span>
+            </div>
+          )}
           <button 
             onClick={() => console.log("Çıkış Yapıldı")} // Çıkış yapma işlevini buraya ekleyin
             className="flex items-center w-full p-3 rounded-lg text-red-400 font-medium hover:bg-red-900/50 transition-colors duration-200"

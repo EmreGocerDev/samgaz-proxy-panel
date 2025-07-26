@@ -4,12 +4,12 @@
 import { useEffect, useState } from "react";
 import GlassCard from "@/components/GlassCard"; 
 import InteractiveBackground from "@/components/InteractiveBackground"; 
-import Sidebar from "@/components/Sidebar"; // Yeni eklenen Sidebar bileşeni
+import Sidebar from "@/components/Sidebar";
 
-// Tip tanımı: API'den beklenen JSON yapısına göre
-interface LoginSamgazApiResponse {
+interface ApiResponse {
   success?: boolean; 
   message?: string; 
+  loggedInUsername?: string; // API'den bu yeni alanı bekliyoruz
   results?: Array<{
     value: number;
     label: string;
@@ -20,40 +20,28 @@ export default function DashboardPage() {
   const [userList, setUserList] = useState<Array<{ value: number; label: string }> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null); // Başlangıçta null
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const credentials = {
-          username: "ybayraktar",
-          password: "23121633",
-          connectionType: "forticlient",
-        };
-
+        // ARTIK GÖVDESİ (BODY) OLMAYAN BİR GET İSTEĞİ YAPIYORUZ
         const response = await fetch('/api/get-data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(credentials),
+          method: 'GET', // Metot GET olarak değişti
         });
 
-        const result: LoginSamgazApiResponse = await response.json(); 
+        const result: ApiResponse = await response.json(); 
         
-        console.log("API'den gelen ham yanıt (result):", result);
-        console.log("HTTP Durum Kodu:", response.status);
-
-        if (!response.ok || (result.success !== undefined && !result.success)) {
+        if (!response.ok || !result.success) {
             throw new Error(result.message || `API isteği başarısız oldu (HTTP: ${response.status}).`);
         }
         
-        const fetchedUserList = result.results; 
-
-        if (!fetchedUserList || !Array.isArray(fetchedUserList) || fetchedUserList.length === 0) {
-            throw new Error("API yanıtı beklenen 'results' dizisini içermiyor, formatı hatalı veya kullanıcı listesi boş.");
+        if (!result.results || !Array.isArray(result.results)) {
+            throw new Error("API yanıtı beklenen 'results' dizisini içermiyor.");
         }
 
-        setUserList(fetchedUserList); 
+        setUserList(result.results);
+        setCurrentUser(result.loggedInUsername || null); // Gelen kullanıcı adını state'e ata
 
       } catch (err) {
         if (err instanceof Error) {
@@ -70,6 +58,7 @@ export default function DashboardPage() {
   }, []);
 
   const renderContent = () => {
+    // ... BU FONKSİYONDA HİÇBİR DEĞİŞİKLİK YOK, AYNI KALIYOR ...
     if (isLoading) {
       return (
         <div className="flex items-center justify-center min-h-[calc(100vh-100px)] w-full">
@@ -80,40 +69,18 @@ export default function DashboardPage() {
     if (error) {
       return <p className="text-red-400 text-center py-8 w-full">Hata: {error}</p>;
     }
-    
     if (userList && userList.length > 0) {
       return (
-        <div className="flex flex-col items-start w-full" style={{ height: 'calc(100vh - 64px - 64px)' }}> {/* Sidebar'a uygun yükseklik ve üst/alt boşluk bırakma */}
-          {/* Özel kaydırma çubuğu stili için global stil eklendi */}
+        <div className="flex flex-col items-start w-full" style={{ height: 'calc(100vh - 64px - 64px)' }}>
           <style jsx global>{`
-            /* WebKit (Chrome, Safari) için kaydırma çubuğu */
-            ::-webkit-scrollbar {
-              width: 8px; /* Kaydırma çubuğunun genişliği */
-              border-radius: 4px; /* Kaydırma çubuğu yuvarlak köşeler */
-            }
-
-            ::-webkit-scrollbar-track {
-              background: rgba(45, 55, 72, 0.4); /* Kaydırma çubuğu arka planı (zinc-800/40 gibi) */
-              border-radius: 4px;
-            }
-
-            ::-webkit-scrollbar-thumb {
-              background-color: rgba(59, 130, 246, 0.7); /* Kaydırma çubuğu rengi (mavi-500/70 gibi) */
-              border-radius: 4px;
-              border: 1px solid rgba(45, 55, 72, 0.6); /* Kenarlık */
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-              background-color: rgba(59, 130, 246, 1); /* Hover rengi */
-            }
+            ::-webkit-scrollbar { width: 8px; border-radius: 4px; }
+            ::-webkit-scrollbar-track { background: rgba(45, 55, 72, 0.4); border-radius: 4px; }
+            ::-webkit-scrollbar-thumb { background-color: rgba(59, 130, 246, 0.7); border-radius: 4px; border: 1px solid rgba(45, 55, 72, 0.6); }
+            ::-webkit-scrollbar-thumb:hover { background-color: rgba(59, 130, 246, 1); }
           `}</style>
-
-          <div className="w-full flex-grow space-y-3 overflow-y-auto custom-scrollbar pr-4"> {/* Sağa kaydırma çubuğu için boşluk */}
+          <div className="w-full flex-grow space-y-3 overflow-y-auto custom-scrollbar pr-4">
             {userList.map((user) => (
-              <GlassCard 
-                key={user.value} 
-                className="w-full p-3 flex justify-between items-center" 
-              >
+              <GlassCard key={user.value} className="w-full p-3 flex justify-between items-center">
                 <div className="flex-grow"> 
                   <div className="font-semibold text-white text-base">{user.label}</div>
                   <div className="text-xs text-zinc-400">ID: {user.value}</div>
@@ -129,14 +96,9 @@ export default function DashboardPage() {
 
   return (
     <main className="relative flex min-h-screen overflow-hidden bg-gray-950">
-      {/* Arka plan */}
       <InteractiveBackground /> 
-
-      {/* Sidebar bileşeni */}
-      <Sidebar />
-
-      {/* Ana içerik alanı */}
-      <div className="relative z-20 flex-grow p-4 sm:p-6 lg:p-8"> {/* Sidebar'dan kalan alanı kapla */}
+      <Sidebar currentUserUsername={currentUser} />
+      <div className="relative z-20 flex-grow p-4 pl-20 md:pl-8 sm:p-6 lg:p-8">
         {renderContent()}
       </div>
     </main>
