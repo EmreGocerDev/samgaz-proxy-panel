@@ -13,4 +13,4 @@ const DashboardBackground = () => {
   );
 };
 
-export default DashboardBackground;
+export default DashboardBackground; 
