@@ -1,84 +1,47 @@
 // src/components/Sidebar.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Home, Users, LogOut, Menu, X, GitPullRequest, TrendingUp } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation'; // useRouter eklendi
+import { Home, Users, LogOut, GitPullRequest, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { createClient } from '@/utils/supabase/client'; // Supabase client eklendi
 
 interface SidebarProps {
   currentUserUsername: string | null;
+  isOpen: boolean;
+  setIsOpen: (isOpen: boolean) => void;
+  isSyncing: boolean;
+  handleSync: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername, isOpen, setIsOpen, isSyncing, handleSync }) => {
   const pathname = usePathname();
-  const [isOpen, setIsOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const router = useRouter(); // router tanımlandı
+  const supabase = createClient();
 
   const navItems = [
     { name: 'Samrest Atar', href: '/dashboard', icon: Home },
     { name: 'Stabilizasyon', href: '/dashboard/stabilization', icon: TrendingUp },
   ];
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-
-    // GÖNDERİLECEK VERİ: API'nin beklediği kimlik bilgileri
-    const credentials = {
-        username: "ybayraktar",
-        password: "23121633",
-        connectionType: "forticlient",
-    };
-
-    // DÜZELTİLEN KISIM: fetch çağrısına headers ve body eklendi
-    const syncPromise = fetch('/api/sync-elemanlar', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    });
-
-    toast.promise(
-      syncPromise.then(async (res) => {
-        // Hata durumunda bile JSON'ı okumaya çalış, sunucudan gelen hata mesajını yakala
-        const result = await res.json();
-        if (!res.ok) { // res.ok durumu 200-299 arası HTTP durum kodlarını kontrol eder
-          // result.message sunucudaki API rotasından gelen hata mesajıdır
-          throw new Error(result.message || 'Bilinmeyen bir sunucu hatası oluştu.');
-        }
-        return result.message; 
-      }),
-      {
-        loading: 'Kullanıcılar senkronize ediliyor...',
-        success: (message) => <b>{String(message)}</b>,
-        error: (err) => <b>Hata: {err.toString()}</b>,
-      }
-    );
-
-    syncPromise.finally(() => setIsSyncing(false));
+  // YENİ: Çıkış yapma fonksiyonu
+  const handleLogout = async () => {
+    const toastId = toast.loading('Çıkış yapılıyor...');
+    await supabase.auth.signOut();
+    toast.dismiss(toastId);
+    toast.success('Başarıyla çıkış yapıldı!');
+    
+    // Yönlendirme ve sayfayı yenileme, middleware'in devreye girmesini sağlar
+    router.push('/');
+    router.refresh();
   };
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) setIsOpen(false);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   return (
     <>
-      <button 
-        className="fixed top-4 left-4 z-50 p-2 bg-zinc-900/60 border border-zinc-800 rounded-lg md:hidden text-white backdrop-blur-md"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
       <aside 
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:relative md:w-64 min-h-screen bg-zinc-900/60 backdrop-blur-xl border-r border-zinc-800 transition-transform duration-300 ease-in-out flex flex-col p-4`}
+        className={`fixed inset-y-0 left-0 z-40 w-64 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} bg-zinc-900/80 backdrop-blur-xl border-r border-zinc-800 transition-transform duration-300 ease-in-out flex flex-col p-4`}
       >
         <div className="flex items-center justify-center h-20 border-b border-zinc-700 mb-6">
           <h1 className="text-2xl font-bold text-white tracking-wider">SAMREST</h1>
@@ -86,12 +49,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
 
         <nav className="flex-grow space-y-2">
           {navItems.map((item) => (
-            <Link key={item.name} href={item.href} className={`flex items-center p-3 rounded-lg text-white font-medium transition-colors duration-200 ${pathname === item.href ? 'bg-cyan-700/50 text-cyan-200 border border-cyan-600/50' : 'hover:bg-zinc-800/50'}`} onClick={() => setIsOpen(false)}>
+            <Link key={item.name} href={item.href} className={`flex items-center p-3 rounded-lg text-white font-medium transition-colors duration-200 ${pathname === item.href ? 'bg-cyan-700/50' : 'hover:bg-zinc-800/50'}`} onClick={() => setIsOpen(false)}>
               <item.icon size={20} className="mr-3" />
               {item.name}
             </Link>
           ))}
-
           <button
             onClick={handleSync}
             disabled={isSyncing}
@@ -116,14 +78,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUserUsername }) => {
               <span>Giriş Yapan: <span className="font-bold text-white">{currentUserUsername}</span></span>
             </div>
           )}
-          <button onClick={() => console.log("Çıkış Yapıldı")} className="flex items-center w-full p-3 rounded-lg text-red-400 font-medium hover:bg-red-900/50 transition-colors duration-200">
+          {/* DÜZELTME: onClick artık handleLogout fonksiyonunu çağırıyor */}
+          <button onClick={handleLogout} className="flex items-center w-full p-3 rounded-lg text-red-400 font-medium hover:bg-red-900/50">
             <LogOut size={20} className="mr-3" />
             Çıkış Yap
           </button>
         </div>
       </aside>
 
-      {isOpen && <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setIsOpen(false)}></div>}
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setIsOpen(false)}></div>}
     </>
   );
 };

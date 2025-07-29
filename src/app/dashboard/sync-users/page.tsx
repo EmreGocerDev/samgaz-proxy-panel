@@ -1,4 +1,3 @@
-// src/app/dashboard/sync-users/page.tsx
 "use client";
 
 import { useState } from 'react';
@@ -14,8 +13,6 @@ export default function SyncUsersPage() {
     setError('');
 
     try {
-      // NOT: Bu API, login olmak için kimlik bilgisi gerektiriyor.
-      // Gelecekte bunu session'dan alacağız, şimdilik test için sabit giriyoruz.
       const credentials = {
         username: "ybayraktar",
         password: "23121633",
@@ -31,16 +28,16 @@ export default function SyncUsersPage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || 'Bilinmeyen bir hata oluştu.');
+        throw new Error(result.message || 'Bilinmeyen bir hata olustu.');
       }
-      
-      setMessage(result.message); // API'den gelen başarılı mesajını göster
+
+      setMessage(result.message);
 
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Beklenmedik bir hata oluştu.');
+        setError('Beklenmedik bir hata olustu.');
       }
     } finally {
       setIsLoading(false);
@@ -51,10 +48,10 @@ export default function SyncUsersPage() {
     <div className="p-8 text-white">
       <h1 className="text-3xl font-bold mb-4">Kullanıcı Senkronizasyonu</h1>
       <p className="text-zinc-400 mb-8">
-        Bu sayfa, Samgaz API'sindeki güncel kullanıcı listesi ile yerel veritabanımızı senkronize eder.
-        Samgaz'da yeni eklenenler buraya eklenir, oradan silinenler buradan kaldırılır.
+        Bu sayfa, Samgaz API&apos;sindeki güncel kullanıcı listesi ile yerel veritabanımızı senkronize eder.
+        Samgaz&apos;da yeni eklenenler buraya eklenir, oradan silinenler buradan kaldırılır.
       </p>
-      
+
       <div className="bg-zinc-900/50 p-6 rounded-lg border border-zinc-800">
         <button
           onClick={handleSync}
